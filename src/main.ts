@@ -4,6 +4,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalHttpExceptionFilter } from './shared/filters/http-exception.filter';
+import { ApiResponseInterceptor } from './shared/interceptors/api-response.interceptor';
+import { SanitizeInputPipe } from './shared/pipes/sanitize-input.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,14 +17,18 @@ async function bootstrap() {
   });
   // Enforce strict DTO contracts at the application boundary.
   app.useGlobalPipes(
+    new SanitizeInputPipe(),
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
+      forbidUnknownValues: true,
+      stopAtFirstError: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),
   );
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()

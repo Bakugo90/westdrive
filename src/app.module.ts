@@ -7,6 +7,8 @@ import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { AuthOtp } from './auth/entities/auth-otp.entity';
+import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { Permission } from './iam/entities/permission.entity';
 import { RolePermission } from './iam/entities/role-permission.entity';
 import { Role } from './iam/entities/role.entity';
@@ -38,7 +40,15 @@ import { UsersModule } from './users/users.module';
               type: 'postgres',
               url: configService.getOrThrow<string>('DATABASE_URL'),
               uuidExtension: 'pgcrypto',
-              entities: [User, Permission, Role, RolePermission, UserRole],
+              entities: [
+                User,
+                Permission,
+                Role,
+                RolePermission,
+                UserRole,
+                AuthOtp,
+                RefreshToken,
+              ],
               migrations: ['dist/database/migrations/*.js'],
               // Keep schema and startup seed in sync without manual migration step.
               migrationsRun: true,

@@ -20,6 +20,7 @@ export class UsersService {
   }): Promise<User> {
     const user = this.userRepository.create({
       ...payload,
+      email: payload.email.trim().toLowerCase(),
       status: UserStatus.ACTIF,
     });
     return this.userRepository.save(user);
@@ -34,7 +35,7 @@ export class UsersService {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.userRepository.findOne({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
       relations: {
         userRoles: {
           role: {
@@ -62,5 +63,12 @@ export class UsersService {
 
     user.status = status;
     return this.userRepository.save(user);
+  }
+
+  async updatePasswordHash(
+    userId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    await this.userRepository.update({ id: userId }, { passwordHash });
   }
 }
