@@ -6,7 +6,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { Permission } from './iam/entities/permission.entity';
+import { RolePermission } from './iam/entities/role-permission.entity';
+import { Role } from './iam/entities/role.entity';
+import { UserRole } from './iam/entities/user-role.entity';
+import { IamModule } from './iam/iam.module';
 import { User } from './users/entities/user.entity';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -31,14 +38,18 @@ import { User } from './users/entities/user.entity';
               type: 'postgres',
               url: configService.getOrThrow<string>('DATABASE_URL'),
               uuidExtension: 'pgcrypto',
-              entities: [User],
+              entities: [User, Permission, Role, RolePermission, UserRole],
               migrations: ['dist/database/migrations/*.js'],
-              migrationsRun: false,
+              // Keep schema and startup seed in sync without manual migration step.
+              migrationsRun: true,
               synchronize: false,
               ssl: configService.get<string>('DB_SSL') === 'true',
             }),
           }),
         ]),
+    ...(process.env.NODE_ENV === 'test' || process.env.SKIP_DB === 'true'
+      ? []
+      : [UsersModule, IamModule, AuthModule]),
   ],
   controllers: [AppController],
   providers: [

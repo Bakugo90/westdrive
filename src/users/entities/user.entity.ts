@@ -2,8 +2,10 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { UserRole } from '../../iam/entities/user-role.entity';
 
 export enum UserStatus {
   ACTIF = 'ACTIF',
@@ -42,4 +44,7 @@ export class User {
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
+
+  @OneToMany(() => UserRole, (userRole) => userRole.user)
+  userRoles!: UserRole[];
 }
