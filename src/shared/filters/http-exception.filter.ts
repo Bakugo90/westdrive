@@ -30,11 +30,18 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
         : ((exceptionResponse as { message?: string | string[] }).message ??
           'Internal server error');
 
+    const normalizedMessage = Array.isArray(message)
+      ? message.join(', ')
+      : message;
+
     response.status(status).json({
-      statusCode: status,
-      message,
-      path: request.url,
-      timestamp: new Date().toISOString(),
+      status: 'error',
+      code: status,
+      data: {
+        path: request.url,
+        timestamp: new Date().toISOString(),
+      },
+      message: normalizedMessage,
     });
   }
 }

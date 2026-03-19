@@ -19,4 +19,17 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('health')
+  @ApiOperation({
+    summary: 'Healthcheck applicatif',
+    description: 'Retourne l etat de disponibilite du service API.',
+  })
+  @ApiOkResponse({
+    description: 'Service disponible.',
+    schema: { example: { status: 'ok' } },
+  })
+  health() {
+    return this.appService.health();
+  }
 }
