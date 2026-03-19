@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   ParseUUIDPipe,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,7 +23,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/interfaces/auth-user.interface';
 import { RequirePermissions } from '../iam/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../iam/guards/permissions.guard';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
@@ -107,6 +111,61 @@ export class UsersController {
     return this.usersService.listUsers();
   }
 
+  @Post()
+  @RequirePermissions('users.write')
+  @ApiOperation({
+    summary: 'Creer un utilisateur',
+    description: 'Necessite la permission users.write.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
+  @ApiForbiddenResponse({
+    description: 'Permission insuffisante (users.write requise).',
+  })
+  create(@Body() dto: CreateUserDto) {
+    return this.usersService.create(dto);
+  }
+
+  @Get(':id')
+  @RequirePermissions('users.read')
+  @ApiOperation({
+    summary: 'Recuperer un utilisateur par id',
+    description: 'Necessite la permission users.read.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de l utilisateur',
+    example: 'f7c3084e-6a3b-4dcf-a9f2-b6dbfae436c0',
+  })
+  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
+  @ApiForbiddenResponse({
+    description: 'Permission insuffisante (users.read requise).',
+  })
+  getUserById(@Param('id', new ParseUUIDPipe()) userId: string) {
+    return this.usersService.getById(userId);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('users.write')
+  @ApiOperation({
+    summary: 'Mettre a jour un utilisateur',
+    description: 'Necessite la permission users.write.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de l utilisateur a modifier',
+    example: 'f7c3084e-6a3b-4dcf-a9f2-b6dbfae436c0',
+  })
+  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
+  @ApiForbiddenResponse({
+    description: 'Permission insuffisante (users.write requise).',
+  })
+  updateUser(
+    @Param('id', new ParseUUIDPipe()) userId: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.usersService.update(userId, dto);
+  }
+
   @Patch(':id/status')
   @RequirePermissions('users.status.write')
   @ApiOperation({
@@ -128,5 +187,24 @@ export class UsersController {
     @Body() dto: UpdateUserStatusDto,
   ) {
     return this.usersService.updateStatus(userId, dto.status);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('users.delete')
+  @ApiOperation({
+    summary: 'Supprimer un utilisateur',
+    description: 'Necessite la permission users.delete.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID de l utilisateur a supprimer',
+    example: 'f7c3084e-6a3b-4dcf-a9f2-b6dbfae436c0',
+  })
+  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
+  @ApiForbiddenResponse({
+    description: 'Permission insuffisante (users.delete requise).',
+  })
+  removeUser(@Param('id', new ParseUUIDPipe()) userId: string) {
+    return this.usersService.remove(userId);
   }
 }

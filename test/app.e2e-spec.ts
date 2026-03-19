@@ -15,6 +15,11 @@ describe('AppController (e2e)', () => {
   let createdUserEmail = '';
   let createdUserId = '';
   let customRoleId = '';
+  let createdVehicleId = '';
+  let crudUserId = '';
+  let limitedUserToken = '';
+  let limitedUserId = '';
+  let limitedRoleId = '';
   let adminEmail = '';
   let adminPassword = '';
 
@@ -378,6 +383,247 @@ describe('AppController (e2e)', () => {
       data: {
         roleId: customRoleId,
         userId: createdUserId,
+      },
+    });
+  });
+
+  it('/users CRUD should work end-to-end for admin role', async () => {
+    const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
+    const unique = Date.now();
+
+    const createUser = await request(httpServer)
+      .post('/users')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        email: `crud.user.${unique}@westdrive.fr`,
+        password: 'CrudUserPassword123!',
+        firstName: 'Crud',
+        lastName: 'User',
+        phone: '+33611112222',
+        role: 'CUSTOMER',
+      })
+      .expect(201);
+
+    expect(createUser.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        email: `crud.user.${unique}@westdrive.fr`,
+      },
+    });
+
+    crudUserId = createUser.body.data.id as string;
+
+    const getUser = await request(httpServer)
+      .get(`/users/${crudUserId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(getUser.body).toMatchObject({
+      status: 'success',
+      code: 200,
+      data: {
+        id: crudUserId,
+      },
+    });
+
+    const updateUser = await request(httpServer)
+      .patch(`/users/${crudUserId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        firstName: 'CrudUpdated',
+        role: 'CUSTOMER_SUPPORT',
+      })
+      .expect(200);
+
+    expect(updateUser.body).toMatchObject({
+      status: 'success',
+      code: 200,
+      data: {
+        id: crudUserId,
+        firstName: 'CrudUpdated',
+        role: 'CUSTOMER_SUPPORT',
+      },
+    });
+
+    const deleteUser = await request(httpServer)
+      .delete(`/users/${crudUserId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(deleteUser.body).toMatchObject({
+      status: 'success',
+      code: 200,
+      data: {
+        message: 'User deleted successfully',
+      },
+    });
+  });
+
+  it('/vehicles CRUD should work for admin and enforce permissions for read-only role', async () => {
+    const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
+    const ts = Date.now();
+
+    const createVehicle = await request(httpServer)
+      .post('/vehicles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: `Tesla Model X ${ts}`,
+        brand: 'Tesla',
+        model: 'Model X',
+        year: 2024,
+        category: 'SUV',
+        transmission: 'AUTOMATIQUE',
+        energy: 'ELECTRIQUE',
+        seats: 7,
+        includedKmPerDay: 250,
+        pricePerDay: 199.99,
+        isActive: true,
+        availableCities: ['Paris', 'Nanterre'],
+        streetAddress: '12 Rue de Rivoli',
+        city: 'Paris',
+        latitude: 48.856614,
+        longitude: 2.3522219,
+        images: [
+          {
+            url: 'https://cdn.westdrive.fr/vehicles/model-x/front.jpg',
+            sortOrder: 0,
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(createVehicle.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        brand: 'Tesla',
+      },
+    });
+    createdVehicleId = createVehicle.body.data.id as string;
+
+    await request(httpServer)
+      .get('/vehicles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .get(`/vehicles/${createdVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .get(`/vehicles/${createdVehicleId}/availability`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .query({
+        startAt: '2026-04-01T08:00:00Z',
+        endAt: '2026-04-01T12:00:00Z',
+      })
+      .expect(200);
+
+    await request(httpServer)
+      .patch(`/vehicles/${createdVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        city: 'Nanterre',
+        isActive: true,
+      })
+      .expect(200);
+
+    const limitedRoleName = `role_vehicle_reader_${ts}`;
+    const limitedRole = await request(httpServer)
+      .post('/iam/roles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: limitedRoleName,
+        description: 'Read-only vehicle role',
+        permissionCodes: ['vehicles.read', 'users.read'],
+      })
+      .expect(201);
+
+    limitedRoleId = limitedRole.body.data.id as string;
+
+    limitedUserId = '';
+    const limitedUserEmail = `limited.reader.${ts}@westdrive.fr`;
+
+    await request(httpServer)
+      .post('/auth/register')
+      .send({
+        email: limitedUserEmail,
+        password: 'LimitedReaderPassword123!',
+        firstName: 'Limited',
+        lastName: 'Reader',
+        phone: '+33633334444',
+      })
+      .expect(201);
+
+    const limitedConfirm = await request(httpServer)
+      .post('/auth/register/confirm')
+      .send({
+        email: limitedUserEmail,
+        otp: process.env.OTP_FIXED_CODE ?? '123456',
+      })
+      .expect(201);
+
+    const limitedPayload = unwrapTokenPayload(
+      limitedConfirm.body.data.accessToken as string,
+    );
+    limitedUserId =
+      typeof limitedPayload.sub === 'string' ? limitedPayload.sub : '';
+
+    await request(httpServer)
+      .post(`/iam/roles/${limitedRoleId}/users/${limitedUserId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(201);
+
+    const limitedLogin = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        email: limitedUserEmail,
+        password: 'LimitedReaderPassword123!',
+      })
+      .expect(201);
+
+    limitedUserToken = limitedLogin.body.data.accessToken as string;
+
+    await request(httpServer)
+      .get('/vehicles')
+      .set('Authorization', `Bearer ${limitedUserToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .post('/vehicles')
+      .set('Authorization', `Bearer ${limitedUserToken}`)
+      .send({
+        name: 'Forbidden Vehicle',
+        brand: 'Ford',
+        model: 'Mustang',
+        year: 2023,
+        category: 'SPORT',
+        transmission: 'MANUELLE',
+        energy: 'ESSENCE',
+        seats: 4,
+        includedKmPerDay: 150,
+        pricePerDay: 120,
+        streetAddress: '10 Avenue Victor Hugo',
+        city: 'Paris',
+        latitude: 48.8566,
+        longitude: 2.3522,
+      })
+      .expect(403);
+
+    const deleteVehicle = await request(httpServer)
+      .delete(`/vehicles/${createdVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(deleteVehicle.body).toMatchObject({
+      status: 'success',
+      code: 200,
+      data: {
+        message: 'Vehicle deleted successfully',
       },
     });
   });

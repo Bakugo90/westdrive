@@ -16,6 +16,9 @@ import { UserRole } from './iam/entities/user-role.entity';
 import { IamModule } from './iam/iam.module';
 import { User } from './users/entities/user.entity';
 import { UsersModule } from './users/users.module';
+import { VehicleImage } from './vehicles/entities/vehicle-image.entity';
+import { Vehicle } from './vehicles/entities/vehicle.entity';
+import { VehiclesModule } from './vehicles/vehicles.module';
 
 @Module({
   imports: [
@@ -48,6 +51,8 @@ import { UsersModule } from './users/users.module';
                 UserRole,
                 AuthOtp,
                 RefreshToken,
+                Vehicle,
+                VehicleImage,
               ],
               migrations: ['dist/database/migrations/*.js'],
               // Keep schema and startup seed in sync without manual migration step.
@@ -59,7 +64,7 @@ import { UsersModule } from './users/users.module';
         ]),
     ...(process.env.NODE_ENV === 'test' || process.env.SKIP_DB === 'true'
       ? []
-      : [UsersModule, IamModule, AuthModule]),
+      : [UsersModule, IamModule, AuthModule, VehiclesModule]),
   ],
   controllers: [AppController],
   providers: [

@@ -7,6 +7,8 @@ import { RolePermission } from '../iam/entities/role-permission.entity';
 import { Role } from '../iam/entities/role.entity';
 import { UserRole } from '../iam/entities/user-role.entity';
 import { User } from '../users/entities/user.entity';
+import { VehicleImage } from '../vehicles/entities/vehicle-image.entity';
+import { Vehicle } from '../vehicles/entities/vehicle.entity';
 
 // Load local overrides first, then fallback to .env.
 config({ path: '.env.local' });
@@ -25,6 +27,8 @@ export default new DataSource({
     UserRole,
     AuthOtp,
     RefreshToken,
+    Vehicle,
+    VehicleImage,
   ],
   migrations: ['src/database/migrations/*.ts'],
   synchronize: false,
