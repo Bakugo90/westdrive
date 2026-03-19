@@ -8,6 +8,8 @@ import { Permission } from '../iam/entities/permission.entity';
 import { RolePermission } from '../iam/entities/role-permission.entity';
 import { Role } from '../iam/entities/role.entity';
 import { UserRole } from '../iam/entities/user-role.entity';
+import { ReservationEvent } from '../reservations/entities/reservation-event.entity';
+import { Reservation } from '../reservations/entities/reservation.entity';
 import { User } from '../users/entities/user.entity';
 import { VehicleImage } from '../vehicles/entities/vehicle-image.entity';
 import { Vehicle } from '../vehicles/entities/vehicle.entity';
@@ -33,6 +35,8 @@ export default new DataSource({
     VehicleImage,
     FleetIncident,
     VehicleScheduleSlot,
+    Reservation,
+    ReservationEvent,
   ],
   migrations: ['src/database/migrations/*.ts'],
   synchronize: false,

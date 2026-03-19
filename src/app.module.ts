@@ -17,6 +17,9 @@ import { RolePermission } from './iam/entities/role-permission.entity';
 import { Role } from './iam/entities/role.entity';
 import { UserRole } from './iam/entities/user-role.entity';
 import { IamModule } from './iam/iam.module';
+import { ReservationEvent } from './reservations/entities/reservation-event.entity';
+import { Reservation } from './reservations/entities/reservation.entity';
+import { ReservationsModule } from './reservations/reservations.module';
 import { User } from './users/entities/user.entity';
 import { UsersModule } from './users/users.module';
 import { VehicleImage } from './vehicles/entities/vehicle-image.entity';
@@ -58,6 +61,8 @@ import { VehiclesModule } from './vehicles/vehicles.module';
                 VehicleImage,
                 FleetIncident,
                 VehicleScheduleSlot,
+                Reservation,
+                ReservationEvent,
               ],
               migrations: ['dist/database/migrations/*.js'],
               // Keep schema and startup seed in sync without manual migration step.
@@ -69,7 +74,14 @@ import { VehiclesModule } from './vehicles/vehicles.module';
         ]),
     ...(process.env.NODE_ENV === 'test' || process.env.SKIP_DB === 'true'
       ? []
-      : [UsersModule, IamModule, AuthModule, VehiclesModule, FleetModule]),
+      : [
+          UsersModule,
+          IamModule,
+          AuthModule,
+          VehiclesModule,
+          FleetModule,
+          ReservationsModule,
+        ]),
   ],
   controllers: [AppController],
   providers: [

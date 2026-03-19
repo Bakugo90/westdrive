@@ -817,6 +817,212 @@ describe('AppController (e2e)', () => {
       .expect(200);
   });
 
+  it('/reservations should enforce anti overlap, timeline and permissions', async () => {
+    const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
+    const ts = Date.now();
+
+    const reservationVehicle = await request(httpServer)
+      .post('/vehicles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: `Reservation Vehicle ${ts}`,
+        brand: 'Mercedes',
+        model: 'GLC',
+        year: 2025,
+        category: 'SUV',
+        transmission: 'AUTOMATIQUE',
+        energy: 'DIESEL',
+        seats: 5,
+        includedKmPerDay: 220,
+        pricePerDay: 179,
+        isActive: true,
+        availableCities: ['Paris'],
+        streetAddress: '99 Boulevard Haussmann',
+        city: 'Paris',
+        latitude: 48.872,
+        longitude: 2.332,
+      })
+      .expect(201);
+
+    const reservationVehicleId = reservationVehicle.body.data.id as string;
+
+    const firstReservation = await request(httpServer)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        vehicleId: reservationVehicleId,
+        requesterType: 'PARTICULIER',
+        requesterName: 'Reservation Client',
+        requesterEmail: `reservation.client.${ts}@westdrive.fr`,
+        requesterPhone: '+33655554444',
+        startAt: '2026-07-10T09:00:00Z',
+        endAt: '2026-07-12T09:00:00Z',
+        pickupCity: 'Paris',
+        requestedVehicleType: 'SUV',
+        amountTtc: 420,
+      })
+      .expect(201);
+
+    expect(firstReservation.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        status: 'NOUVELLE_DEMANDE',
+      },
+    });
+
+    const reservationId = firstReservation.body.data.id as string;
+
+    await request(httpServer)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        vehicleId: reservationVehicleId,
+        requesterType: 'PARTICULIER',
+        requesterName: 'Overlap Client',
+        requesterEmail: `reservation.overlap.${ts}@westdrive.fr`,
+        requesterPhone: '+33656565656',
+        startAt: '2026-07-11T10:00:00Z',
+        endAt: '2026-07-13T10:00:00Z',
+        pickupCity: 'Paris',
+        requestedVehicleType: 'SUV',
+      })
+      .expect(409);
+
+    const initialEvents = await request(httpServer)
+      .get(`/reservations/${reservationId}/events`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(initialEvents.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'reservation_created' }),
+      ]),
+    );
+
+    const statusUpdate = await request(httpServer)
+      .patch(`/reservations/${reservationId}/status`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ status: 'EN_ANALYSE' })
+      .expect(200);
+
+    expect(statusUpdate.body.data.status).toBe('EN_ANALYSE');
+
+    await request(httpServer)
+      .post(`/reservations/${reservationId}/events`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        type: 'reservation_agent_note',
+        payload: { note: 'Client contacte et dossier complet.' },
+      })
+      .expect(201);
+
+    const timelineAfterUpdates = await request(httpServer)
+      .get(`/reservations/${reservationId}/events`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(timelineAfterUpdates.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'reservation_created' }),
+        expect.objectContaining({ type: 'reservation_status_changed' }),
+        expect.objectContaining({ type: 'reservation_agent_note' }),
+      ]),
+    );
+
+    const reservationReaderRoleName = `role_reservation_reader_${ts}`;
+    const reservationReaderRole = await request(httpServer)
+      .post('/iam/roles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: reservationReaderRoleName,
+        description: 'Read-only reservation role',
+        permissionCodes: ['reservations.read'],
+      })
+      .expect(201);
+
+    const reservationReaderRoleId = reservationReaderRole.body.data
+      .id as string;
+    const reservationReaderEmail = `reservation.reader.${ts}@westdrive.fr`;
+
+    await request(httpServer)
+      .post('/auth/register')
+      .send({
+        email: reservationReaderEmail,
+        password: 'ReservationReaderPassword123!',
+        firstName: 'Reservation',
+        lastName: 'Reader',
+        phone: '+33678787878',
+      })
+      .expect(201);
+
+    const reservationReaderConfirm = await request(httpServer)
+      .post('/auth/register/confirm')
+      .send({
+        email: reservationReaderEmail,
+        otp: process.env.OTP_FIXED_CODE ?? '123456',
+      })
+      .expect(201);
+
+    const reservationReaderPayload = unwrapTokenPayload(
+      reservationReaderConfirm.body.data.accessToken as string,
+    );
+    const reservationReaderUserId =
+      typeof reservationReaderPayload.sub === 'string'
+        ? reservationReaderPayload.sub
+        : '';
+
+    await request(httpServer)
+      .post(
+        `/iam/roles/${reservationReaderRoleId}/users/${reservationReaderUserId}`,
+      )
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(201);
+
+    const reservationReaderLogin = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        email: reservationReaderEmail,
+        password: 'ReservationReaderPassword123!',
+      })
+      .expect(201);
+
+    const reservationReaderToken = reservationReaderLogin.body.data
+      .accessToken as string;
+
+    await request(httpServer)
+      .get('/reservations')
+      .set('Authorization', `Bearer ${reservationReaderToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .post('/reservations')
+      .set('Authorization', `Bearer ${reservationReaderToken}`)
+      .send({
+        vehicleId: reservationVehicleId,
+        requesterType: 'PARTICULIER',
+        requesterName: 'Forbidden Reservation',
+        requesterEmail: `reservation.forbidden.${ts}@westdrive.fr`,
+        requesterPhone: '+33600001111',
+        startAt: '2026-07-15T10:00:00Z',
+        endAt: '2026-07-16T10:00:00Z',
+        pickupCity: 'Paris',
+        requestedVehicleType: 'SUV',
+      })
+      .expect(403);
+
+    await request(httpServer)
+      .delete(`/reservations/${reservationId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .delete(`/vehicles/${reservationVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
+
   it('validation should be enforced by global ValidationPipe', async () => {
     const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
 
