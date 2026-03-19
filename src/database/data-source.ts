@@ -2,6 +2,8 @@ import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { AuthOtp } from '../auth/entities/auth-otp.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
+import { FleetIncident } from '../fleet/entities/fleet-incident.entity';
+import { VehicleScheduleSlot } from '../fleet/entities/vehicle-schedule-slot.entity';
 import { Permission } from '../iam/entities/permission.entity';
 import { RolePermission } from '../iam/entities/role-permission.entity';
 import { Role } from '../iam/entities/role.entity';
@@ -29,6 +31,8 @@ export default new DataSource({
     RefreshToken,
     Vehicle,
     VehicleImage,
+    FleetIncident,
+    VehicleScheduleSlot,
   ],
   migrations: ['src/database/migrations/*.ts'],
   synchronize: false,

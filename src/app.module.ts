@@ -9,6 +9,9 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { AuthOtp } from './auth/entities/auth-otp.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
+import { FleetModule } from './fleet/fleet.module';
+import { FleetIncident } from './fleet/entities/fleet-incident.entity';
+import { VehicleScheduleSlot } from './fleet/entities/vehicle-schedule-slot.entity';
 import { Permission } from './iam/entities/permission.entity';
 import { RolePermission } from './iam/entities/role-permission.entity';
 import { Role } from './iam/entities/role.entity';
@@ -53,6 +56,8 @@ import { VehiclesModule } from './vehicles/vehicles.module';
                 RefreshToken,
                 Vehicle,
                 VehicleImage,
+                FleetIncident,
+                VehicleScheduleSlot,
               ],
               migrations: ['dist/database/migrations/*.js'],
               // Keep schema and startup seed in sync without manual migration step.
@@ -64,7 +69,7 @@ import { VehiclesModule } from './vehicles/vehicles.module';
         ]),
     ...(process.env.NODE_ENV === 'test' || process.env.SKIP_DB === 'true'
       ? []
-      : [UsersModule, IamModule, AuthModule, VehiclesModule]),
+      : [UsersModule, IamModule, AuthModule, VehiclesModule, FleetModule]),
   ],
   controllers: [AppController],
   providers: [

@@ -20,6 +20,7 @@ describe('AppController (e2e)', () => {
   let limitedUserToken = '';
   let limitedUserId = '';
   let limitedRoleId = '';
+  let fleetVehicleId = '';
   let adminEmail = '';
   let adminPassword = '';
 
@@ -626,6 +627,194 @@ describe('AppController (e2e)', () => {
         message: 'Vehicle deleted successfully',
       },
     });
+  });
+
+  it('/fleet incidents and schedule CRUD should work and enforce permissions', async () => {
+    const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
+    const ts = Date.now();
+
+    const createVehicle = await request(httpServer)
+      .post('/vehicles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: `Fleet Test Vehicle ${ts}`,
+        brand: 'BMW',
+        model: 'Serie 3',
+        year: 2025,
+        category: 'BERLINE',
+        transmission: 'AUTOMATIQUE',
+        energy: 'HYBRIDE',
+        seats: 5,
+        includedKmPerDay: 180,
+        pricePerDay: 149.5,
+        isActive: true,
+        availableCities: ['Paris'],
+        streetAddress: '20 Rue de la Paix',
+        city: 'Paris',
+        latitude: 48.8698,
+        longitude: 2.3316,
+      })
+      .expect(201);
+
+    fleetVehicleId = createVehicle.body.data.id as string;
+
+    const createIncident = await request(httpServer)
+      .post('/fleet/incidents')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        vehicleId: fleetVehicleId,
+        incidentType: 'PANNE',
+        severity: 'CRITIQUE',
+        description: 'Panne moteur detectee en exploitation',
+      })
+      .expect(201);
+
+    expect(createIncident.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        vehicleId: fleetVehicleId,
+        severity: 'CRITIQUE',
+      },
+    });
+
+    const incidentId = createIncident.body.data.id as string;
+
+    const fleetVehicleAfterIncident = await request(httpServer)
+      .get(`/vehicles/${fleetVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(fleetVehicleAfterIncident.body.data.operationalStatus).toBe(
+      'INDISPONIBLE',
+    );
+
+    const listIncidents = await request(httpServer)
+      .get('/fleet/incidents')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    expect(listIncidents.body).toMatchObject({
+      status: 'success',
+      code: 200,
+      data: expect.any(Array),
+    });
+
+    await request(httpServer)
+      .patch(`/fleet/incidents/${incidentId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ status: 'EN_COURS' })
+      .expect(200);
+
+    const createSlot = await request(httpServer)
+      .post('/fleet/schedule-slots')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        vehicleId: fleetVehicleId,
+        startAt: '2026-04-15T08:00:00Z',
+        endAt: '2026-04-15T12:00:00Z',
+        slotType: 'MAINTENANCE',
+      })
+      .expect(201);
+
+    const slotId = createSlot.body.data.id as string;
+
+    await request(httpServer)
+      .get('/fleet/schedule-slots')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .patch(`/fleet/schedule-slots/${slotId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ slotType: 'INSPECTION' })
+      .expect(200);
+
+    const fleetReaderRoleName = `role_fleet_reader_${ts}`;
+    const fleetReaderRole = await request(httpServer)
+      .post('/iam/roles')
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        name: fleetReaderRoleName,
+        description: 'Read-only fleet role',
+        permissionCodes: ['fleet.read'],
+      })
+      .expect(201);
+
+    const fleetReaderRoleId = fleetReaderRole.body.data.id as string;
+    const fleetReaderEmail = `fleet.reader.${ts}@westdrive.fr`;
+
+    await request(httpServer)
+      .post('/auth/register')
+      .send({
+        email: fleetReaderEmail,
+        password: 'FleetReaderPassword123!',
+        firstName: 'Fleet',
+        lastName: 'Reader',
+        phone: '+33677778888',
+      })
+      .expect(201);
+
+    const fleetReaderConfirm = await request(httpServer)
+      .post('/auth/register/confirm')
+      .send({
+        email: fleetReaderEmail,
+        otp: process.env.OTP_FIXED_CODE ?? '123456',
+      })
+      .expect(201);
+
+    const fleetReaderPayload = unwrapTokenPayload(
+      fleetReaderConfirm.body.data.accessToken as string,
+    );
+    const fleetReaderUserId =
+      typeof fleetReaderPayload.sub === 'string' ? fleetReaderPayload.sub : '';
+
+    await request(httpServer)
+      .post(`/iam/roles/${fleetReaderRoleId}/users/${fleetReaderUserId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(201);
+
+    const fleetReaderLogin = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        email: fleetReaderEmail,
+        password: 'FleetReaderPassword123!',
+      })
+      .expect(201);
+
+    const fleetReaderToken = fleetReaderLogin.body.data.accessToken as string;
+
+    await request(httpServer)
+      .get('/fleet/overview')
+      .set('Authorization', `Bearer ${fleetReaderToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .post('/fleet/incidents')
+      .set('Authorization', `Bearer ${fleetReaderToken}`)
+      .send({
+        vehicleId: fleetVehicleId,
+        incidentType: 'DOMMAGE',
+        severity: 'MINEUR',
+        description: 'Eraflure mineure',
+      })
+      .expect(403);
+
+    await request(httpServer)
+      .delete(`/fleet/schedule-slots/${slotId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .delete(`/fleet/incidents/${incidentId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    await request(httpServer)
+      .delete(`/vehicles/${fleetVehicleId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
   });
 
   it('validation should be enforced by global ValidationPipe', async () => {
