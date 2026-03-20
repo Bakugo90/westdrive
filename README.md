@@ -41,6 +41,18 @@ Variables critiques:
 - `DATABASE_URL`
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 
+SMTP Hostinger (OTP email):
+- `MAIL_ENABLED=true`
+- `MAIL_HOST=smtp.hostinger.com`
+- `MAIL_PORT=465`
+- `MAIL_SECURE=true`
+- `MAIL_USER=noreply@your-domain.com`
+- `MAIL_PASSWORD=...`
+- `MAIL_FROM_EMAIL=noreply@your-domain.com`
+- `MAIL_FROM_NAME=WestDrive`
+
+Note: en environnement de test, gardez `MAIL_ENABLED=false` pour eviter toute emission externe.
+
 ## Docker Development (API + PostgreSQL)
 
 ```bash

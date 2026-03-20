@@ -21,6 +21,7 @@ import { AuthOtp, AuthOtpPurpose } from './entities/auth-otp.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../shared/mail/mail.service';
 
 type TokenPair = {
   accessToken: string;
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly iamService: IamService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
     @InjectRepository(AuthOtp)
     private readonly authOtpRepository: Repository<AuthOtp>,
     @InjectRepository(RefreshToken)
@@ -51,6 +53,11 @@ export class AuthService {
     }
 
     const passwordHash = await argon2.hash(dto.password);
+    const ttlMinutes = this.configService.get<number>(
+      'REGISTER_OTP_TTL_MINUTES',
+      10,
+    );
+
     await this.createOtp({
       email,
       purpose: AuthOtpPurpose.REGISTER,
@@ -61,10 +68,7 @@ export class AuthService {
         lastName: dto.lastName,
         phone: dto.phone ?? '+33000000000',
       },
-      ttlMinutes: this.configService.get<number>(
-        'REGISTER_OTP_TTL_MINUTES',
-        10,
-      ),
+      ttlMinutes,
     });
 
     return { message: 'OTP sent' };
@@ -173,14 +177,16 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (user) {
+      const ttlMinutes = this.configService.get<number>(
+        'PASSWORD_RESET_OTP_TTL_MINUTES',
+        10,
+      );
+
       await this.createOtp({
         email,
         purpose: AuthOtpPurpose.RESET_PASSWORD,
         userId: user.id,
-        ttlMinutes: this.configService.get<number>(
-          'PASSWORD_RESET_OTP_TTL_MINUTES',
-          10,
-        ),
+        ttlMinutes,
       });
     }
 
@@ -316,9 +322,23 @@ export class AuthService {
       }),
     );
 
-    this.logger.log(
-      `OTP generated for ${options.purpose} on ${options.email}. Code=${otp}`,
-    );
+    await this.mailService.sendOtpEmail({
+      to: options.email,
+      otpCode: otp,
+      purpose:
+        options.purpose === AuthOtpPurpose.REGISTER
+          ? 'register'
+          : 'reset-password',
+      ttlMinutes: options.ttlMinutes,
+    });
+
+    if (
+      this.configService.get<string>('NODE_ENV', 'development') !== 'production'
+    ) {
+      this.logger.log(
+        `OTP generated for ${options.purpose} on ${options.email}. Code=${otp}`,
+      );
+    }
   }
 
   private async validateOtp(
