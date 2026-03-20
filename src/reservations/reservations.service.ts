@@ -6,12 +6,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
+import { VehicleScheduleSlot } from '../fleet/entities/vehicle-schedule-slot.entity';
 import {
   Vehicle,
   VehicleOperationalStatus,
 } from '../vehicles/entities/vehicle.entity';
 import { CreateReservationEventDto } from './dto/create-reservation-event.dto';
 import { CreateReservationDto } from './dto/create-reservation.dto';
+import { CreateStripePreauthDto } from './dto/create-stripe-preauth.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { UpdateReservationStatusDto } from './dto/update-reservation-status.dto';
 import { ReservationEvent } from './entities/reservation-event.entity';
@@ -55,6 +57,18 @@ const ALLOWED_TRANSITIONS: Record<ReservationStatus, ReservationStatus[]> = {
   [ReservationStatus.REFUSEE]: [],
 };
 
+const STATUS_EVENT_MAP: Record<ReservationStatus, string> = {
+  [ReservationStatus.NOUVELLE_DEMANDE]: 'reservation_created',
+  [ReservationStatus.EN_ANALYSE]: 'reservation_commercial_reviewed',
+  [ReservationStatus.PROPOSITION_ENVOYEE]: 'reservation_counter_offer_sent',
+  [ReservationStatus.EN_ATTENTE_PAIEMENT]: 'reservation_counter_offer_sent',
+  [ReservationStatus.CONFIRMEE]: 'reservation_stripe_preauth_created',
+  [ReservationStatus.EN_COURS]: 'reservation_vehicle_handover',
+  [ReservationStatus.CLOTUREE]: 'reservation_closed',
+  [ReservationStatus.ANNULEE]: 'reservation_closed',
+  [ReservationStatus.REFUSEE]: 'reservation_closed',
+};
+
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -64,6 +78,8 @@ export class ReservationsService {
     private readonly reservationEventRepository: Repository<ReservationEvent>,
     @InjectRepository(Vehicle)
     private readonly vehicleRepository: Repository<Vehicle>,
+    @InjectRepository(VehicleScheduleSlot)
+    private readonly slotRepository: Repository<VehicleScheduleSlot>,
   ) {}
 
   async create(dto: CreateReservationDto): Promise<Reservation> {
@@ -100,6 +116,21 @@ export class ReservationsService {
           publicReference: savedReservation.publicReference,
         },
       }),
+    );
+
+    await this.appendSystemEvent(
+      savedReservation.id,
+      'reservation_ack_email_sent',
+      {
+        channel: 'email',
+      },
+    );
+    await this.appendSystemEvent(
+      savedReservation.id,
+      'reservation_admin_notified',
+      {
+        channel: 'internal',
+      },
     );
 
     return this.findOne(savedReservation.id);
@@ -205,14 +236,50 @@ export class ReservationsService {
     reservation.status = dto.status;
     await this.reservationRepository.save(reservation);
 
-    await this.reservationEventRepository.save(
-      this.reservationEventRepository.create({
-        reservationId: reservation.id,
-        type: 'reservation_status_changed',
-        occurredAt: new Date(),
-        payload: { status: dto.status },
-      }),
+    await this.appendSystemEvent(reservation.id, 'reservation_status_changed', {
+      status: dto.status,
+    });
+
+    await this.appendSystemEvent(
+      reservation.id,
+      STATUS_EVENT_MAP[dto.status] ?? 'reservation_status_changed',
+      { status: dto.status },
     );
+
+    return this.findOne(reservation.id);
+  }
+
+  async createStripePreauth(
+    reservationId: string,
+    dto: CreateStripePreauthDto,
+  ): Promise<Reservation> {
+    const reservation = await this.findOne(reservationId);
+
+    if (reservation.status !== ReservationStatus.EN_ATTENTE_PAIEMENT) {
+      throw new BadRequestException(
+        'Stripe preauthorization is only allowed from EN_ATTENTE_PAIEMENT status',
+      );
+    }
+
+    await this.appendSystemEvent(
+      reservation.id,
+      'reservation_stripe_preauth_created',
+      {
+        provider: 'STRIPE',
+        amount: dto.amount ?? Number(reservation.depositAmount),
+        currency: 'EUR',
+        preauthStatus: 'AUTHORIZED',
+      },
+    );
+
+    await this.reservationRepository.update(
+      { id: reservation.id },
+      { status: ReservationStatus.CONFIRMEE },
+    );
+
+    await this.appendSystemEvent(reservation.id, 'reservation_status_changed', {
+      status: ReservationStatus.CONFIRMEE,
+    });
 
     return this.findOne(reservation.id);
   }
@@ -221,7 +288,42 @@ export class ReservationsService {
     reservationId: string,
     dto: CreateReservationEventDto,
   ): Promise<ReservationEvent> {
-    await this.findOne(reservationId);
+    const reservation = await this.findOne(reservationId);
+
+    // Operational timeline events can trigger safe status transitions automatically.
+    if (dto.type === 'reservation_vehicle_handover') {
+      if (reservation.status !== ReservationStatus.CONFIRMEE) {
+        throw new BadRequestException(
+          'Vehicle handover requires CONFIRMEE reservation status',
+        );
+      }
+      reservation.status = ReservationStatus.EN_COURS;
+      await this.reservationRepository.save(reservation);
+      await this.appendSystemEvent(
+        reservation.id,
+        'reservation_status_changed',
+        {
+          status: reservation.status,
+        },
+      );
+    }
+
+    if (dto.type === 'reservation_closed') {
+      if (reservation.status !== ReservationStatus.EN_COURS) {
+        throw new BadRequestException(
+          'Reservation can only be closed from EN_COURS status',
+        );
+      }
+      reservation.status = ReservationStatus.CLOTUREE;
+      await this.reservationRepository.save(reservation);
+      await this.appendSystemEvent(
+        reservation.id,
+        'reservation_status_changed',
+        {
+          status: reservation.status,
+        },
+      );
+    }
 
     const event = this.reservationEventRepository.create({
       reservationId,
@@ -265,6 +367,10 @@ export class ReservationsService {
       throw new NotFoundException('Vehicle not found');
     }
 
+    if (!vehicle.isActive) {
+      throw new BadRequestException('Vehicle is inactive');
+    }
+
     // Maintenance or blocked vehicles cannot be used for new bookings.
     if (
       vehicle.operationalStatus === VehicleOperationalStatus.INDISPONIBLE ||
@@ -282,6 +388,21 @@ export class ReservationsService {
     endAt: Date,
     excludedReservationId?: string,
   ): Promise<void> {
+    const blockedSlotCount = await this.slotRepository
+      .createQueryBuilder('slot')
+      .where('slot.vehicle_id = :vehicleId', { vehicleId })
+      .andWhere('(slot.start_at < :endAt) AND (slot.end_at > :startAt)', {
+        startAt,
+        endAt,
+      })
+      .getCount();
+
+    if (blockedSlotCount > 0) {
+      throw new ConflictException(
+        'Vehicle is blocked by schedule slot for the selected range',
+      );
+    }
+
     const conflictingCount = await this.reservationRepository.count({
       where: {
         vehicleId,
@@ -326,11 +447,30 @@ export class ReservationsService {
     if (startAt >= endAt) {
       throw new BadRequestException('startAt must be before endAt');
     }
+
+    if (startAt.getTime() < Date.now() - 60_000) {
+      throw new BadRequestException('startAt must be in the future');
+    }
   }
 
   private generatePublicReference(): string {
     const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
     const random = Math.floor(1000 + Math.random() * 9000);
     return `RES-${date}-${random}`;
+  }
+
+  private async appendSystemEvent(
+    reservationId: string,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.reservationEventRepository.save(
+      this.reservationEventRepository.create({
+        reservationId,
+        type,
+        occurredAt: new Date(),
+        payload,
+      }),
+    );
   }
 }

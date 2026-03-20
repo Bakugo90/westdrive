@@ -2,9 +2,11 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToOne,
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { CompanyProfile } from './company-profile.entity';
 import { UserRole } from '../../iam/entities/user-role.entity';
 
 export enum UserStatus {
@@ -47,4 +49,10 @@ export class User {
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles!: UserRole[];
+
+  @OneToOne(() => CompanyProfile, (companyProfile) => companyProfile.user, {
+    cascade: true,
+    nullable: true,
+  })
+  companyProfile!: CompanyProfile | null;
 }

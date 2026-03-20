@@ -22,6 +22,7 @@ import { RequirePermissions } from '../iam/decorators/require-permissions.decora
 import { PermissionsGuard } from '../iam/guards/permissions.guard';
 import { CreateReservationEventDto } from './dto/create-reservation-event.dto';
 import { CreateReservationDto } from './dto/create-reservation.dto';
+import { CreateStripePreauthDto } from './dto/create-stripe-preauth.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { UpdateReservationStatusDto } from './dto/update-reservation-status.dto';
 import { ReservationsService } from './reservations.service';
@@ -95,6 +96,21 @@ export class ReservationsController {
     @Body() dto: UpdateReservationStatusDto,
   ) {
     return this.reservationsService.updateStatus(id, dto);
+  }
+
+  @Post(':id/stripe-preauth')
+  @RequirePermissions('reservations.manage')
+  @ApiOperation({ summary: 'Creer une preautorisation Stripe de reservation' })
+  @ApiParam({ name: 'id', description: 'UUID de la reservation' })
+  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
+  @ApiForbiddenResponse({
+    description: 'Permission reservations.manage requise.',
+  })
+  createStripePreauth(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreateStripePreauthDto,
+  ) {
+    return this.reservationsService.createStripePreauth(id, dto);
   }
 
   @Post(':id/events')

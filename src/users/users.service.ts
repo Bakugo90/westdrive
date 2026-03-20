@@ -20,11 +20,19 @@ export class UsersService {
     lastName: string;
     phone: string;
     role: string;
+    companyProfile?: {
+      companyName: string;
+      siret: string;
+      contactName: string;
+      contactEmail: string;
+      contactPhone: string;
+    } | null;
   }): Promise<User> {
     const user = this.userRepository.create({
       ...payload,
       email: payload.email.trim().toLowerCase(),
       status: UserStatus.ACTIF,
+      companyProfile: payload.companyProfile ?? null,
     });
     return this.userRepository.save(user);
   }
@@ -32,7 +40,7 @@ export class UsersService {
   async findById(id: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { id },
-      relations: { userRoles: true },
+      relations: { userRoles: true, companyProfile: true },
     });
   }
 
@@ -40,6 +48,7 @@ export class UsersService {
     return this.userRepository.findOne({
       where: { email: email.trim().toLowerCase() },
       relations: {
+        companyProfile: true,
         userRoles: {
           role: {
             rolePermissions: {

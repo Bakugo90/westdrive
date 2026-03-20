@@ -58,6 +58,21 @@ export class AuthService {
       10,
     );
 
+    const accountType = dto.accountType ?? 'PARTICULIER';
+    if (accountType === 'ENTREPRISE') {
+      if (
+        !dto.companyName ||
+        !dto.siret ||
+        !dto.contactName ||
+        !dto.contactEmail ||
+        !dto.contactPhone
+      ) {
+        throw new BadRequestException(
+          'Missing enterprise profile fields for ENTREPRISE account',
+        );
+      }
+    }
+
     await this.createOtp({
       email,
       purpose: AuthOtpPurpose.REGISTER,
@@ -67,6 +82,12 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone ?? '+33000000000',
+        accountType,
+        companyName: dto.companyName ?? null,
+        siret: dto.siret ?? null,
+        contactName: dto.contactName ?? null,
+        contactEmail: dto.contactEmail ?? null,
+        contactPhone: dto.contactPhone ?? null,
       },
       ttlMinutes,
     });
@@ -92,9 +113,33 @@ export class AuthService {
     const lastName = this.readPayloadString(payload, 'lastName', 'WestDrive');
     const phone = this.readPayloadString(payload, 'phone', '+33000000000');
     const passwordHash = this.readPayloadString(payload, 'passwordHash', '');
+    const accountType = this.readPayloadString(
+      payload,
+      'accountType',
+      'PARTICULIER',
+    );
+
+    const companyName = this.readPayloadNullableString(payload, 'companyName');
+    const siret = this.readPayloadNullableString(payload, 'siret');
+    const contactName = this.readPayloadNullableString(payload, 'contactName');
+    const contactEmail = this.readPayloadNullableString(
+      payload,
+      'contactEmail',
+    );
+    const contactPhone = this.readPayloadNullableString(
+      payload,
+      'contactPhone',
+    );
 
     if (!passwordHash) {
       throw new UnauthorizedException('Invalid OTP payload');
+    }
+
+    if (
+      accountType === 'ENTREPRISE' &&
+      (!companyName || !siret || !contactName || !contactEmail || !contactPhone)
+    ) {
+      throw new UnauthorizedException('Invalid enterprise OTP payload');
     }
 
     const user = await this.usersService.createUser({
@@ -104,6 +149,16 @@ export class AuthService {
       lastName,
       phone,
       role: 'CUSTOMER',
+      companyProfile:
+        accountType === 'ENTREPRISE'
+          ? {
+              companyName: companyName ?? '',
+              siret: siret ?? '',
+              contactName: contactName ?? '',
+              contactEmail: contactEmail ?? '',
+              contactPhone: contactPhone ?? '',
+            }
+          : null,
     });
 
     otpRecord.consumedAt = new Date();
@@ -395,6 +450,14 @@ export class AuthService {
   ): string {
     const value = payload[key];
     return typeof value === 'string' ? value : fallback;
+  }
+
+  private readPayloadNullableString(
+    payload: Record<string, unknown>,
+    key: string,
+  ): string | null {
+    const value = payload[key];
+    return typeof value === 'string' ? value : null;
   }
 
   private parseDurationToSeconds(raw: string): number {

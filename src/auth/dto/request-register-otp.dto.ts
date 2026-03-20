@@ -1,7 +1,22 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RequestRegisterOtpDto {
+  @ApiPropertyOptional({
+    description: 'Type de compte (PARTICULIER ou ENTREPRISE)',
+    example: 'PARTICULIER',
+  })
+  @IsOptional()
+  @IsIn(['PARTICULIER', 'ENTREPRISE'])
+  accountType?: 'PARTICULIER' | 'ENTREPRISE';
+
   @ApiProperty({
     description: 'Email du nouveau compte',
     example: 'client@westdrive.fr',
@@ -39,4 +54,29 @@ export class RequestRegisterOtpDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ example: 'WestDrive SAS' })
+  @ValidateIf((dto: RequestRegisterOtpDto) => dto.accountType === 'ENTREPRISE')
+  @IsString()
+  companyName?: string;
+
+  @ApiPropertyOptional({ example: '12345678901234' })
+  @ValidateIf((dto: RequestRegisterOtpDto) => dto.accountType === 'ENTREPRISE')
+  @IsString()
+  siret?: string;
+
+  @ApiPropertyOptional({ example: 'Amine Diallo' })
+  @ValidateIf((dto: RequestRegisterOtpDto) => dto.accountType === 'ENTREPRISE')
+  @IsString()
+  contactName?: string;
+
+  @ApiPropertyOptional({ example: 'contact@entreprise.fr' })
+  @ValidateIf((dto: RequestRegisterOtpDto) => dto.accountType === 'ENTREPRISE')
+  @IsEmail()
+  contactEmail?: string;
+
+  @ApiPropertyOptional({ example: '+33699998888' })
+  @ValidateIf((dto: RequestRegisterOtpDto) => dto.accountType === 'ENTREPRISE')
+  @IsString()
+  contactPhone?: string;
 }
