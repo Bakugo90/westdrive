@@ -5,6 +5,11 @@ export const envValidationSchema = Joi.object({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().default(3000),
+  CORS_WHITELIST: Joi.string().default('http://localhost:3001'),
+  CORS_ALLOW_NO_ORIGIN: Joi.string().valid('true', 'false').default('true'),
+  CORS_METHODS: Joi.string().default(
+    'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  ),
   CORS_ORIGIN: Joi.string().default('http://localhost:3001'),
   DATABASE_URL: Joi.string().uri().required(),
   DB_SSL: Joi.string().valid('true', 'false').default('false'),

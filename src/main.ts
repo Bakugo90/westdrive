@@ -10,9 +10,38 @@ import { SanitizeInputPipe } from './shared/pipes/sanitize-input.pipe';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const whitelistRaw =
+    process.env.CORS_WHITELIST ??
+    process.env.CORS_ORIGIN ??
+    'http://localhost:3001';
+
+  const corsWhitelist = whitelistRaw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const allowNoOrigin =
+    (process.env.CORS_ALLOW_NO_ORIGIN ?? 'true').toLowerCase() === 'true';
+
+  const methodsRaw =
+    process.env.CORS_METHODS ?? 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
+  const corsMethods = methodsRaw
+    .split(',')
+    .map((method) => method.trim().toUpperCase())
+    .filter(Boolean);
+
   app.use(helmet());
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3001').split(','),
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, allowNoOrigin);
+        return;
+      }
+
+      const isAllowed = corsWhitelist.includes(origin);
+      callback(null, isAllowed);
+    },
+    methods: corsMethods,
     credentials: true,
   });
   // Enforce strict DTO contracts at the application boundary.
