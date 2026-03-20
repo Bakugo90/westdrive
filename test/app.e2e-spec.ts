@@ -174,6 +174,44 @@ describe('AppController (e2e)', () => {
     );
   });
 
+  it('/auth/register should support entreprise profile onboarding with same auth process', async () => {
+    const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
+    const entrepriseEmail = `entreprise.${Date.now()}@westdrive.fr`;
+
+    await request(httpServer)
+      .post('/auth/register')
+      .send({
+        accountType: 'ENTREPRISE',
+        email: entrepriseEmail,
+        password: 'StrongPassword123!',
+        firstName: 'Nadia',
+        lastName: 'Bensaid',
+        phone: '+33645454545',
+        companyName: 'NBS Logistics',
+        siret: '52345678901234',
+        contactName: 'Nadia Bensaid',
+        contactEmail: 'contact@nbs-logistics.fr',
+        contactPhone: '+33645454545',
+      })
+      .expect(201);
+
+    await request(httpServer)
+      .post('/auth/register/confirm')
+      .send({
+        email: entrepriseEmail,
+        otp: process.env.OTP_FIXED_CODE ?? '123456',
+      })
+      .expect(201);
+
+    await request(httpServer)
+      .post('/auth/login')
+      .send({
+        email: entrepriseEmail,
+        password: 'StrongPassword123!',
+      })
+      .expect(201);
+  });
+
   it('/auth/refresh (POST) should rotate refresh token', async () => {
     const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
 
@@ -515,6 +553,27 @@ describe('AppController (e2e)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
+    const uploadedImage = await request(httpServer)
+      .post(`/vehicles/${createdVehicleId}/images/upload?sortOrder=2`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .attach('file', Buffer.from('fake-image-bytes'), {
+        filename: 'vehicle-test.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(uploadedImage.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        vehicleId: createdVehicleId,
+        url: expect.stringContaining('cloudinary.com'),
+      },
+    });
+
+    const uploadedImageId = uploadedImage.body.data.id as string;
+
     await request(httpServer)
       .get(`/vehicles/${createdVehicleId}/availability`)
       .set('Authorization', `Bearer ${adminAccessToken}`)
@@ -614,6 +673,11 @@ describe('AppController (e2e)', () => {
         longitude: 2.3522,
       })
       .expect(403);
+
+    await request(httpServer)
+      .delete(`/vehicles/${createdVehicleId}/images/${uploadedImageId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
 
     const deleteVehicle = await request(httpServer)
       .delete(`/vehicles/${createdVehicleId}`)
@@ -910,11 +974,49 @@ describe('AppController (e2e)', () => {
     expect(statusUpdate.body.data.status).toBe('EN_ANALYSE');
 
     await request(httpServer)
+      .patch(`/reservations/${reservationId}/status`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ status: 'PROPOSITION_ENVOYEE' })
+      .expect(200);
+
+    await request(httpServer)
+      .patch(`/reservations/${reservationId}/status`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ status: 'EN_ATTENTE_PAIEMENT' })
+      .expect(200);
+
+    const preauthResponse = await request(httpServer)
+      .post(`/reservations/${reservationId}/stripe-preauth`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ amount: 1200 })
+      .expect(201);
+
+    expect(preauthResponse.body.data.status).toBe('CONFIRMEE');
+
+    await request(httpServer)
       .post(`/reservations/${reservationId}/events`)
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
-        type: 'reservation_agent_note',
-        payload: { note: 'Client contacte et dossier complet.' },
+        type: 'reservation_vehicle_handover',
+        payload: { actor: 'admin', notes: 'Vehicule remis au client' },
+      })
+      .expect(201);
+
+    await request(httpServer)
+      .post(`/reservations/${reservationId}/events`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        type: 'reservation_vehicle_returned',
+        payload: { actor: 'admin', notes: 'Vehicule retourne conforme' },
+      })
+      .expect(201);
+
+    await request(httpServer)
+      .post(`/reservations/${reservationId}/events`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        type: 'reservation_closed',
+        payload: { actor: 'admin', notes: 'Reservation cloturee' },
       })
       .expect(201);
 
@@ -926,8 +1028,14 @@ describe('AppController (e2e)', () => {
     expect(timelineAfterUpdates.body.data).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'reservation_created' }),
-        expect.objectContaining({ type: 'reservation_status_changed' }),
-        expect.objectContaining({ type: 'reservation_agent_note' }),
+        expect.objectContaining({ type: 'reservation_ack_email_sent' }),
+        expect.objectContaining({ type: 'reservation_admin_notified' }),
+        expect.objectContaining({ type: 'reservation_commercial_reviewed' }),
+        expect.objectContaining({ type: 'reservation_counter_offer_sent' }),
+        expect.objectContaining({ type: 'reservation_stripe_preauth_created' }),
+        expect.objectContaining({ type: 'reservation_vehicle_handover' }),
+        expect.objectContaining({ type: 'reservation_vehicle_returned' }),
+        expect.objectContaining({ type: 'reservation_closed' }),
       ]),
     );
 

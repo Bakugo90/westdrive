@@ -11,6 +11,7 @@ describe('ReservationsController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     updateStatus: jest.fn(),
+    createStripePreauth: jest.fn(),
     createEvent: jest.fn(),
     findEvents: jest.fn(),
     remove: jest.fn(),
@@ -69,5 +70,23 @@ describe('ReservationsController', () => {
       { id: 'e-1' },
     ]);
     expect(mockService.findEvents).toHaveBeenCalledWith('r-1');
+  });
+
+  it('creates stripe preauthorization', async () => {
+    mockService.createStripePreauth.mockResolvedValue({
+      id: 'r-1',
+      status: 'CONFIRMEE',
+    });
+
+    await expect(
+      controller.createStripePreauth('r-1', { amount: 1200 }),
+    ).resolves.toEqual({
+      id: 'r-1',
+      status: 'CONFIRMEE',
+    });
+
+    expect(mockService.createStripePreauth).toHaveBeenCalledWith('r-1', {
+      amount: 1200,
+    });
   });
 });
