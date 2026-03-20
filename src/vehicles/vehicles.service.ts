@@ -9,6 +9,7 @@ import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { Vehicle, VehicleOperationalStatus } from './entities/vehicle.entity';
 import { VehicleImage } from './entities/vehicle-image.entity';
+import { CloudinaryService } from '../shared/storage/cloudinary.service';
 
 @Injectable()
 export class VehiclesService {
@@ -17,6 +18,7 @@ export class VehiclesService {
     private readonly vehicleRepository: Repository<Vehicle>,
     @InjectRepository(VehicleImage)
     private readonly imageRepository: Repository<VehicleImage>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async create(dto: CreateVehicleDto): Promise<Vehicle> {
@@ -39,6 +41,7 @@ export class VehiclesService {
         this.imageRepository.create({
           vehicleId: savedVehicle.id,
           url: image.url,
+          publicId: null,
           sortOrder: image.sortOrder ?? 0,
         }),
       );
@@ -101,12 +104,23 @@ export class VehiclesService {
 
     if (dto.images) {
       // Full replacement simplifies synchronization with frontend forms.
+      const existingImages = await this.imageRepository.find({
+        where: { vehicleId: id },
+      });
+
+      for (const image of existingImages) {
+        if (image.publicId) {
+          await this.cloudinaryService.deleteAsset(image.publicId);
+        }
+      }
+
       await this.imageRepository.delete({ vehicleId: id });
       if (dto.images.length) {
         const images = dto.images.map((image) =>
           this.imageRepository.create({
             vehicleId: id,
             url: image.url,
+            publicId: null,
             sortOrder: image.sortOrder ?? 0,
           }),
         );
@@ -123,8 +137,62 @@ export class VehiclesService {
       throw new NotFoundException('Vehicle not found');
     }
 
+    const images = await this.imageRepository.find({
+      where: { vehicleId: id },
+    });
+
+    for (const image of images) {
+      if (image.publicId) {
+        await this.cloudinaryService.deleteAsset(image.publicId);
+      }
+    }
+
     await this.vehicleRepository.delete({ id });
     return { message: 'Vehicle deleted successfully' };
+  }
+
+  async uploadImage(
+    vehicleId: string,
+    file: Express.Multer.File,
+    sortOrder = 0,
+  ): Promise<VehicleImage> {
+    await this.findOne(vehicleId);
+
+    const upload = await this.cloudinaryService.uploadVehicleImage({
+      vehicleId,
+      fileBuffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+    });
+
+    const image = this.imageRepository.create({
+      vehicleId,
+      url: upload.secureUrl,
+      publicId: upload.publicId,
+      sortOrder,
+    });
+
+    return this.imageRepository.save(image);
+  }
+
+  async removeImage(
+    vehicleId: string,
+    imageId: string,
+  ): Promise<{ message: string }> {
+    const image = await this.imageRepository.findOne({
+      where: { id: imageId, vehicleId },
+    });
+
+    if (!image) {
+      throw new NotFoundException('Vehicle image not found');
+    }
+
+    if (image.publicId) {
+      await this.cloudinaryService.deleteAsset(image.publicId);
+    }
+
+    await this.imageRepository.delete({ id: imageId });
+    return { message: 'Vehicle image deleted successfully' };
   }
 
   async checkAvailability(

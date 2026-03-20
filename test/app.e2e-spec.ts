@@ -553,6 +553,27 @@ describe('AppController (e2e)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
+    const uploadedImage = await request(httpServer)
+      .post(`/vehicles/${createdVehicleId}/images/upload?sortOrder=2`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .attach('file', Buffer.from('fake-image-bytes'), {
+        filename: 'vehicle-test.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(uploadedImage.body).toMatchObject({
+      status: 'success',
+      code: 201,
+      data: {
+        id: expect.any(String),
+        vehicleId: createdVehicleId,
+        url: expect.stringContaining('cloudinary.com'),
+      },
+    });
+
+    const uploadedImageId = uploadedImage.body.data.id as string;
+
     await request(httpServer)
       .get(`/vehicles/${createdVehicleId}/availability`)
       .set('Authorization', `Bearer ${adminAccessToken}`)
@@ -652,6 +673,11 @@ describe('AppController (e2e)', () => {
         longitude: 2.3522,
       })
       .expect(403);
+
+    await request(httpServer)
+      .delete(`/vehicles/${createdVehicleId}/images/${uploadedImageId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
 
     const deleteVehicle = await request(httpServer)
       .delete(`/vehicles/${createdVehicleId}`)

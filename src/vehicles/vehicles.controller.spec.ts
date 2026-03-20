@@ -12,6 +12,8 @@ describe('VehiclesController', () => {
     update: jest.fn(),
     remove: jest.fn(),
     checkAvailability: jest.fn(),
+    uploadImage: jest.fn(),
+    removeImage: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -104,6 +106,41 @@ describe('VehiclesController', () => {
 
     await expect(
       controller.remove('8c2d4cb8-6220-4fb8-a391-7a2ba81c9688'),
+    ).resolves.toEqual(expected);
+  });
+
+  it('POST /vehicles/:id/images/upload calls uploadImage', async () => {
+    const file = {
+      buffer: Buffer.from('fake-image-data'),
+      mimetype: 'image/png',
+      originalname: 'vehicle.png',
+    } as Express.Multer.File;
+    const expected = {
+      id: 'img-id',
+      url: 'https://res.cloudinary.com/demo/image/upload/test.jpg',
+    };
+    vehiclesServiceMock.uploadImage.mockResolvedValue(expected);
+
+    await expect(
+      controller.uploadImage('8c2d4cb8-6220-4fb8-a391-7a2ba81c9688', file, 1),
+    ).resolves.toEqual(expected);
+
+    expect(vehiclesServiceMock.uploadImage).toHaveBeenCalledWith(
+      '8c2d4cb8-6220-4fb8-a391-7a2ba81c9688',
+      file,
+      1,
+    );
+  });
+
+  it('DELETE /vehicles/:id/images/:imageId calls removeImage', async () => {
+    const expected = { message: 'Vehicle image deleted successfully' };
+    vehiclesServiceMock.removeImage.mockResolvedValue(expected);
+
+    await expect(
+      controller.removeImage(
+        '8c2d4cb8-6220-4fb8-a391-7a2ba81c9688',
+        'de8a85cc-8b8b-41a8-9b57-8da4fc9a8049',
+      ),
     ).resolves.toEqual(expected);
   });
 });

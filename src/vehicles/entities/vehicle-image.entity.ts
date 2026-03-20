@@ -15,6 +15,9 @@ export class VehicleImage {
   @Column({ type: 'varchar' })
   url!: string;
 
+  @Column({ type: 'varchar', name: 'public_id', nullable: true })
+  publicId!: string | null;
+
   @Column({ type: 'int', name: 'sort_order', default: 0 })
   sortOrder!: number;
 

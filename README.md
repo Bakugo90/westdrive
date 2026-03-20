@@ -53,6 +53,17 @@ SMTP Hostinger (OTP email):
 
 Note: en environnement de test, gardez `MAIL_ENABLED=false` pour eviter toute emission externe.
 
+Cloudinary (upload images vehicules):
+- `CLOUDINARY_ENABLED=true`
+- `CLOUDINARY_CLOUD_NAME=...`
+- `CLOUDINARY_API_KEY=...`
+- `CLOUDINARY_API_SECRET=...`
+- `CLOUDINARY_FOLDER=westdrive`
+
+Endpoints upload vehicules:
+- `POST /vehicles/:id/images/upload` (multipart/form-data, champ `file`)
+- `DELETE /vehicles/:id/images/:imageId`
+
 ## Docker Development (API + PostgreSQL)
 
 ```bash
