@@ -11,9 +11,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(helmet());
-  // Temporary relaxed CORS setup for integration phase.
-  // Re-enable the whitelist-based policy before production hardening.
-  app.enableCors();
+  app.enableCors({
+    origin: '*',
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    credentials: false,
+  });
   // Enforce strict DTO contracts at the application boundary.
   app.useGlobalPipes(
     new SanitizeInputPipe(),
