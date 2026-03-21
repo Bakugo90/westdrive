@@ -11,11 +11,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(helmet());
-  // app.enableCors({
-  //   origin: '*',
-  //   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  //   credentials: false,
-  // });
+  app.enableCors({
+    origin: '*',
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: '*',
+    credentials: false,
+  });
   // Enforce strict DTO contracts at the application boundary.
   app.useGlobalPipes(
     new SanitizeInputPipe(),
