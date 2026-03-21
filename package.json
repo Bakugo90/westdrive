@@ -26,7 +26,7 @@
     "seed:all": "ts-node -r tsconfig-paths/register src/database/seeds/seed-all.ts",
     "migration:run:runtime": "typeorm -d dist/database/data-source.js migration:run",
     "db:drop:runtime": "typeorm -d dist/database/data-source.js schema:drop",
-    "seed:all:runtime": "node dist/database/seeds/seed-all.js",
+    "seed:all:runtime": "npm run migration:run:runtime && node dist/database/seeds/seed-all.js",
     "db:reset": "npm run typeorm -- schema:drop && npm run migration:run && npm run seed:all",
     "db:reset:runtime": "npm run db:drop:runtime && npm run migration:run:runtime && npm run seed:all:runtime"
   },

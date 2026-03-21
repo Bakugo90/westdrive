@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { AuthOtp } from '../auth/entities/auth-otp.entity';
 import { RefreshToken } from '../auth/entities/refresh-token.entity';
@@ -40,6 +41,6 @@ export default new DataSource({
     ReservationEvent,
     CompanyProfile,
   ],
-  migrations: ['src/database/migrations/*.ts'],
+  migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
   synchronize: false,
 });
