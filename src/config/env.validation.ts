@@ -62,7 +62,7 @@ export const envValidationSchema = Joi.object({
   REGISTER_OTP_TTL_MINUTES: Joi.number().integer().min(1).default(10),
   PASSWORD_RESET_OTP_TTL_MINUTES: Joi.number().integer().min(1).default(10),
   ADMIN_EMAIL: Joi.string().email().default('admin@westdrive.fr'),
-  ADMIN_PASSWORD: Joi.string().min(12).default('ChangeMeStrongPassword'),
+  ADMIN_PASSWORD: Joi.string().min(8).default('ChangeMeStrongPassword'),
   ADMIN_FIRST_NAME: Joi.string().default('WestDrive'),
   ADMIN_LAST_NAME: Joi.string().default('Admin'),
   ADMIN_PHONE: Joi.string().default('+33000000000'),
