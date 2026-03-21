@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import {
+  buildPaginatedResponse,
+  resolvePagination,
+  type PaginatedResponse,
+} from '../shared/pagination/pagination.util';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { Vehicle, VehicleOperationalStatus } from './entities/vehicle.entity';
@@ -51,8 +56,9 @@ export class VehiclesService {
     return this.findOne(savedVehicle.id);
   }
 
-  async findAll(): Promise<Vehicle[]> {
-    return this.vehicleRepository.find({
+  async findAll(page = 1, limit = 20): Promise<PaginatedResponse<Vehicle>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.vehicleRepository.findAndCount({
       relations: { images: true },
       order: {
         createdAt: 'DESC',
@@ -60,7 +66,16 @@ export class VehiclesService {
           sortOrder: 'ASC',
         },
       },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async findOne(id: string): Promise<Vehicle> {

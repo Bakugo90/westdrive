@@ -2,6 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { Repository } from 'typeorm';
+import {
+  buildPaginatedResponse,
+  resolvePagination,
+  type PaginatedResponse,
+} from '../shared/pagination/pagination.util';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserStatus } from './entities/user.entity';
@@ -60,11 +65,21 @@ export class UsersService {
     });
   }
 
-  async listUsers(): Promise<User[]> {
-    return this.userRepository.find({
+  async listUsers(page = 1, limit = 20): Promise<PaginatedResponse<User>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.userRepository.findAndCount({
       order: { createdAt: 'DESC' },
       relations: { userRoles: { role: true } },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async create(dto: CreateUserDto): Promise<User> {

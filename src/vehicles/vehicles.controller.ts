@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   ParseIntPipe,
@@ -37,11 +38,11 @@ import { VehiclesService } from './vehicles.service';
 @ApiTags('Vehicles')
 @ApiBearerAuth()
 @Controller('vehicles')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.write')
   @ApiOperation({ summary: 'Creer un vehicule' })
   @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
@@ -51,16 +52,17 @@ export class VehiclesController {
   }
 
   @Get()
-  @RequirePermissions('vehicles.read')
   @ApiOperation({ summary: 'Lister les vehicules' })
   @ApiOkResponse({ description: 'Liste des vehicules retournee.' })
-  @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
-  @ApiForbiddenResponse({ description: 'Permission vehicles.read requise.' })
-  findAll() {
-    return this.vehiclesService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.vehiclesService.findAll(page, limit);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.read')
   @ApiOperation({ summary: 'Recuperer un vehicule par id' })
   @ApiParam({ name: 'id', description: 'UUID du vehicule' })
@@ -71,6 +73,7 @@ export class VehiclesController {
   }
 
   @Get(':id/availability')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.read')
   @ApiOperation({ summary: 'Verifier disponibilite d un vehicule' })
   @ApiParam({ name: 'id', description: 'UUID du vehicule' })
@@ -85,6 +88,7 @@ export class VehiclesController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.write')
   @ApiOperation({ summary: 'Mettre a jour un vehicule' })
   @ApiParam({ name: 'id', description: 'UUID du vehicule' })
@@ -98,6 +102,7 @@ export class VehiclesController {
   }
 
   @Post(':id/images/upload')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.write')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Uploader une image vehicule vers Cloudinary' })
@@ -136,6 +141,7 @@ export class VehiclesController {
   }
 
   @Delete(':id/images/:imageId')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.write')
   @ApiOperation({ summary: 'Supprimer une image vehicule (Cloudinary + DB)' })
   removeImage(
@@ -146,6 +152,7 @@ export class VehiclesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('vehicles.delete')
   @ApiOperation({ summary: 'Supprimer un vehicule' })
   @ApiParam({ name: 'id', description: 'UUID du vehicule' })

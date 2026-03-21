@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
   Patch,
+  Query,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   UseGuards,
@@ -107,8 +110,11 @@ export class UsersController {
   @ApiForbiddenResponse({
     description: 'Permission insuffisante (users.read requise).',
   })
-  listUsers() {
-    return this.usersService.listUsers();
+  listUsers(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.usersService.listUsers(page, limit);
   }
 
   @Post()

@@ -69,7 +69,7 @@ describe('ReservationsController', () => {
     await expect(controller.findEvents('r-1')).resolves.toEqual([
       { id: 'e-1' },
     ]);
-    expect(mockService.findEvents).toHaveBeenCalledWith('r-1');
+    expect(mockService.findEvents).toHaveBeenCalledWith('r-1', 1, 20);
   });
 
   it('creates stripe preauthorization', async () => {

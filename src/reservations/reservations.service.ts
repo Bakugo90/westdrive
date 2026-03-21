@@ -8,6 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { VehicleScheduleSlot } from '../fleet/entities/vehicle-schedule-slot.entity';
 import {
+  buildPaginatedResponse,
+  resolvePagination,
+  type PaginatedResponse,
+} from '../shared/pagination/pagination.util';
+import {
   Vehicle,
   VehicleOperationalStatus,
 } from '../vehicles/entities/vehicle.entity';
@@ -136,11 +141,24 @@ export class ReservationsService {
     return this.findOne(savedReservation.id);
   }
 
-  async findAll(): Promise<Reservation[]> {
-    return this.reservationRepository.find({
+  async findAll(
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<Reservation>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.reservationRepository.findAndCount({
       order: { createdAt: 'DESC' },
       relations: { vehicle: true, user: true },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async findOne(id: string): Promise<Reservation> {
@@ -335,13 +353,28 @@ export class ReservationsService {
     return this.reservationEventRepository.save(event);
   }
 
-  async findEvents(reservationId: string): Promise<ReservationEvent[]> {
+  async findEvents(
+    reservationId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<ReservationEvent>> {
     await this.findOne(reservationId);
 
-    return this.reservationEventRepository.find({
+    const pagination = resolvePagination(page, limit);
+
+    const [items, totalItems] = await this.reservationEventRepository.findAndCount({
       where: { reservationId },
       order: { occurredAt: 'ASC' },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async remove(id: string): Promise<{ message: string }> {

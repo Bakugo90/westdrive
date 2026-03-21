@@ -1,11 +1,14 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -58,8 +61,11 @@ export class IamController {
   })
   @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
   @ApiForbiddenResponse({ description: 'Permission roles.read requise.' })
-  listPermissions() {
-    return this.iamService.listPermissions();
+  listPermissions(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.iamService.listPermissions(page, limit);
   }
 
   @Get('roles')
@@ -98,8 +104,11 @@ export class IamController {
   })
   @ApiUnauthorizedResponse({ description: 'Token manquant ou invalide.' })
   @ApiForbiddenResponse({ description: 'Permission roles.read requise.' })
-  listRoles() {
-    return this.iamService.listRoles();
+  listRoles(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.iamService.listRoles(page, limit);
   }
 
   @Post('roles')

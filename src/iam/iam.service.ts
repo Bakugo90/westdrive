@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
@@ -8,6 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { In, Repository } from 'typeorm';
+import {
+  buildPaginatedResponse,
+  resolvePagination,
+  type PaginatedResponse,
+} from '../shared/pagination/pagination.util';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
@@ -19,6 +25,8 @@ import { SYSTEM_PERMISSIONS } from './enums/system-permissions';
 
 @Injectable()
 export class IamService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(IamService.name);
+
   constructor(
     @InjectRepository(Permission)
     private readonly permissionRepository: Repository<Permission>,
@@ -38,24 +46,51 @@ export class IamService implements OnApplicationBootstrap {
       return;
     }
 
+    this.logger.log('Bootstrapping IAM seed (permissions, admin role, admin user)');
     await this.seedSystemPermissions();
     const adminRole = await this.seedAdminRole();
     await this.seedAdminUser(adminRole.id);
+    this.logger.log('IAM seed completed');
   }
 
-  async listPermissions(): Promise<Permission[]> {
-    return this.permissionRepository.find({ order: { code: 'ASC' } });
+  async listPermissions(
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<Permission>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.permissionRepository.findAndCount({
+      order: { code: 'ASC' },
+      skip: pagination.skip,
+      take: pagination.limit,
+    });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
-  async listRoles(): Promise<Role[]> {
-    return this.roleRepository.find({
+  async listRoles(page = 1, limit = 20): Promise<PaginatedResponse<Role>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.roleRepository.findAndCount({
       relations: {
         rolePermissions: {
           permission: true,
         },
       },
       order: { createdAt: 'ASC' },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async createRole(dto: CreateRoleDto): Promise<Role> {
@@ -228,6 +263,9 @@ export class IamService implements OnApplicationBootstrap {
           status: UserStatus.ACTIF,
         }),
       );
+      this.logger.log(`Admin user created from env: ${adminEmail}`);
+    } else {
+      this.logger.log(`Admin user already exists, skipping create: ${adminEmail}`);
     }
 
     const existingRoleLink = await this.userRoleRepository.findOne({
@@ -244,6 +282,9 @@ export class IamService implements OnApplicationBootstrap {
           roleId: adminRoleId,
         }),
       );
+      this.logger.log(`Admin role linked to user: ${adminEmail}`);
+    } else {
+      this.logger.log(`Admin role link already exists for: ${adminEmail}`);
     }
   }
 

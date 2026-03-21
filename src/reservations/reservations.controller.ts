@@ -1,12 +1,15 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -52,8 +55,11 @@ export class ReservationsController {
   @ApiForbiddenResponse({
     description: 'Permission reservations.read requise.',
   })
-  findAll() {
-    return this.reservationsService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.reservationsService.findAll(page, limit);
   }
 
   @Get(':id')
@@ -136,8 +142,12 @@ export class ReservationsController {
   @ApiForbiddenResponse({
     description: 'Permission reservations.read requise.',
   })
-  findEvents(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.reservationsService.findEvents(id);
+  findEvents(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.reservationsService.findEvents(id, page, limit);
   }
 
   @Delete(':id')

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -51,8 +53,11 @@ export class FleetController {
   @RequirePermissions('fleet.read')
   @ApiOperation({ summary: 'Lister les vehicules de flotte' })
   @ApiOkResponse({ description: 'Vehicules de flotte retournes.' })
-  listFleetVehicles() {
-    return this.fleetService.listFleetVehicles();
+  listFleetVehicles(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.fleetService.listFleetVehicles(page, limit);
   }
 
   @Patch('vehicles/:vehicleId/status')
@@ -78,8 +83,11 @@ export class FleetController {
   @Get('incidents')
   @RequirePermissions('fleet.read')
   @ApiOperation({ summary: 'Lister les incidents flotte' })
-  listIncidents() {
-    return this.fleetService.listIncidents();
+  listIncidents(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.fleetService.listIncidents(page, limit);
   }
 
   @Get('incidents/:incidentId')
@@ -119,8 +127,12 @@ export class FleetController {
   @RequirePermissions('fleet.read')
   @ApiOperation({ summary: 'Lister les slots de planning vehicule' })
   @ApiQuery({ name: 'vehicleId', required: false, type: String })
-  listScheduleSlots(@Query('vehicleId') vehicleId?: string) {
-    return this.fleetService.listScheduleSlots(vehicleId);
+  listScheduleSlots(
+    @Query('vehicleId') vehicleId?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit = 20,
+  ) {
+    return this.fleetService.listScheduleSlots(vehicleId, page, limit);
   }
 
   @Get('schedule-slots/:slotId')

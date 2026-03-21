@@ -322,11 +322,19 @@ describe('AppController (e2e)', () => {
     expect(listResponse.body).toMatchObject({
       status: 'success',
       code: 200,
-      data: expect.any(Array),
+      data: {
+        items: expect.any(Array),
+        meta: expect.objectContaining({
+          page: expect.any(Number),
+          limit: expect.any(Number),
+          totalItems: expect.any(Number),
+          totalPages: expect.any(Number),
+        }),
+      },
     });
 
     const targetUser = (
-      listResponse.body.data as Array<{ id: string; email: string }>
+      listResponse.body.data.items as Array<{ id: string; email: string }>
     ).find((user) => user.email === createdUserEmail);
     expect(targetUser).toBeDefined();
 
@@ -357,7 +365,13 @@ describe('AppController (e2e)', () => {
     expect(permissions.body).toMatchObject({
       status: 'success',
       code: 200,
-      data: expect.any(Array),
+      data: {
+        items: expect.any(Array),
+        meta: expect.objectContaining({
+          page: expect.any(Number),
+          limit: expect.any(Number),
+        }),
+      },
     });
 
     const roles = await request(httpServer)
@@ -368,7 +382,13 @@ describe('AppController (e2e)', () => {
     expect(roles.body).toMatchObject({
       status: 'success',
       code: 200,
-      data: expect.any(Array),
+      data: {
+        items: expect.any(Array),
+        meta: expect.objectContaining({
+          page: expect.any(Number),
+          limit: expect.any(Number),
+        }),
+      },
     });
   });
 
@@ -762,7 +782,13 @@ describe('AppController (e2e)', () => {
     expect(listIncidents.body).toMatchObject({
       status: 'success',
       code: 200,
-      data: expect.any(Array),
+      data: {
+        items: expect.any(Array),
+        meta: expect.objectContaining({
+          page: expect.any(Number),
+          limit: expect.any(Number),
+        }),
+      },
     });
 
     await request(httpServer)
@@ -959,7 +985,7 @@ describe('AppController (e2e)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
-    expect(initialEvents.body.data).toEqual(
+    expect(initialEvents.body.data.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'reservation_created' }),
       ]),
@@ -1025,7 +1051,7 @@ describe('AppController (e2e)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
-    expect(timelineAfterUpdates.body.data).toEqual(
+    expect(timelineAfterUpdates.body.data.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'reservation_created' }),
         expect.objectContaining({ type: 'reservation_ack_email_sent' }),

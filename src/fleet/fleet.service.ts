@@ -6,6 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
+  buildPaginatedResponse,
+  resolvePagination,
+  type PaginatedResponse,
+} from '../shared/pagination/pagination.util';
+import {
   Vehicle,
   VehicleOperationalStatus,
 } from '../vehicles/entities/vehicle.entity';
@@ -60,11 +65,24 @@ export class FleetService {
     };
   }
 
-  async listFleetVehicles() {
-    return this.vehicleRepository.find({
+  async listFleetVehicles(
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<Vehicle>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.vehicleRepository.findAndCount({
       order: { createdAt: 'DESC' },
       relations: { images: true },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async updateVehicleStatus(
@@ -101,11 +119,24 @@ export class FleetService {
     return this.getIncidentById(savedIncident.id);
   }
 
-  async listIncidents(): Promise<FleetIncident[]> {
-    return this.incidentRepository.find({
+  async listIncidents(
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<FleetIncident>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.incidentRepository.findAndCount({
       order: { openedAt: 'DESC' },
       relations: { vehicle: true },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async getIncidentById(incidentId: string): Promise<FleetIncident> {
@@ -196,12 +227,26 @@ export class FleetService {
     return this.slotRepository.save(slot);
   }
 
-  async listScheduleSlots(vehicleId?: string): Promise<VehicleScheduleSlot[]> {
-    return this.slotRepository.find({
+  async listScheduleSlots(
+    vehicleId?: string,
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedResponse<VehicleScheduleSlot>> {
+    const pagination = resolvePagination(page, limit);
+    const [items, totalItems] = await this.slotRepository.findAndCount({
       where: vehicleId ? { vehicleId } : {},
       order: { startAt: 'ASC' },
       relations: { vehicle: true },
+      skip: pagination.skip,
+      take: pagination.limit,
     });
+
+    return buildPaginatedResponse(
+      items,
+      pagination.page,
+      pagination.limit,
+      totalItems,
+    );
   }
 
   async getScheduleSlotById(slotId: string): Promise<VehicleScheduleSlot> {
