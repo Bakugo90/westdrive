@@ -35,6 +35,7 @@ services:
       CORS_ORIGIN: http://localhost:3001
       DATABASE_URL: postgresql://postgres:root@db:5432/westdrive
       DB_SSL: 'false'
+      DB_RESET: ${DB_RESET:-false}
       JWT_ACCESS_SECRET: dev_access_secret_change_me
       JWT_REFRESH_SECRET: dev_refresh_secret_change_me
       ADMIN_EMAIL: admin@westdrive.fr
