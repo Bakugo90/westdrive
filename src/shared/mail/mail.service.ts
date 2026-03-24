@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { setDefaultResultOrder } from 'node:dns';
 import nodemailer, { Transporter } from 'nodemailer';
 
 @Injectable()
@@ -42,12 +43,19 @@ export class MailService {
     const socketTimeout = Number(
       this.configService.get<string>('MAIL_SOCKET_TIMEOUT_MS', '20000'),
     );
+    const dnsTimeout = Number(
+      this.configService.get<string>('MAIL_DNS_TIMEOUT_MS', '5000'),
+    );
 
     if (!host || !user || !pass) {
       throw new Error(
         'MAIL_HOST, MAIL_USER and MAIL_PASSWORD are required when MAIL_ENABLED=true',
       );
     }
+
+    // Render and similar platforms often have flaky IPv6 SMTP routing.
+    // Prefer IPv4 resolution first to avoid ENETUNREACH on AAAA records.
+    setDefaultResultOrder('ipv4first');
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -56,6 +64,7 @@ export class MailService {
       connectionTimeout,
       greetingTimeout,
       socketTimeout,
+      dnsTimeout,
       auth: {
         user,
         pass,

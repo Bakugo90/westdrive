@@ -38,6 +38,7 @@ export const envValidationSchema = Joi.object({
   MAIL_HOST: Joi.string().default('smtp.hostinger.com'),
   MAIL_PORT: Joi.number().integer().min(1).max(65535).default(465),
   MAIL_SECURE: Joi.string().valid('true', 'false').default('true'),
+  MAIL_DNS_TIMEOUT_MS: Joi.number().integer().min(1000).default(5000),
   MAIL_USER: Joi.string().allow('').default(''),
   MAIL_PASSWORD: Joi.string().allow('').default(''),
   MAIL_FROM_EMAIL: Joi.string().email().default('noreply@westdrive.fr'),

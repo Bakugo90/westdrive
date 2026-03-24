@@ -68,15 +68,21 @@ describe('MailService', () => {
       ttlMinutes: 10,
     });
 
-    expect(nodemailer.createTransport).toHaveBeenCalledWith({
-      host: 'smtp.hostinger.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: 'noreply@westdrive.fr',
-        pass: 'secret',
-      },
-    });
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'smtp.hostinger.com',
+        port: 465,
+        secure: true,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+        dnsTimeout: 5000,
+        auth: {
+          user: 'noreply@westdrive.fr',
+          pass: 'secret',
+        },
+      }),
+    );
 
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
