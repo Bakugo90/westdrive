@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -242,6 +243,7 @@ export class AuthService {
         purpose: AuthOtpPurpose.RESET_PASSWORD,
         userId: user.id,
         ttlMinutes,
+        suppressEmailErrors: true,
       });
     }
 
@@ -354,6 +356,7 @@ export class AuthService {
     ttlMinutes: number;
     payload?: Record<string, unknown>;
     userId?: string;
+    suppressEmailErrors?: boolean;
   }): Promise<void> {
     await this.authOtpRepository.delete({
       email: options.email,
@@ -365,7 +368,7 @@ export class AuthService {
     const otpHash = await argon2.hash(otp);
     const expiresAt = new Date(Date.now() + options.ttlMinutes * 60 * 1000);
 
-    await this.authOtpRepository.save(
+    const otpRecord = await this.authOtpRepository.save(
       this.authOtpRepository.create({
         email: options.email,
         purpose: options.purpose,
@@ -377,15 +380,30 @@ export class AuthService {
       }),
     );
 
-    await this.mailService.sendOtpEmail({
-      to: options.email,
-      otpCode: otp,
-      purpose:
-        options.purpose === AuthOtpPurpose.REGISTER
-          ? 'register'
-          : 'reset-password',
-      ttlMinutes: options.ttlMinutes,
-    });
+    try {
+      await this.mailService.sendOtpEmail({
+        to: options.email,
+        otpCode: otp,
+        purpose:
+          options.purpose === AuthOtpPurpose.REGISTER
+            ? 'register'
+            : 'reset-password',
+        ttlMinutes: options.ttlMinutes,
+      });
+    } catch (error) {
+      await this.authOtpRepository.delete({ id: otpRecord.id });
+
+      if (options.suppressEmailErrors) {
+        this.logger.warn(
+          `OTP email could not be delivered for ${options.purpose} on ${options.email}`,
+        );
+        return;
+      }
+
+      throw new ServiceUnavailableException(
+        'Unable to send OTP email right now. Please try again shortly.',
+      );
+    }
 
     if (
       this.configService.get<string>('NODE_ENV', 'development') !== 'production'

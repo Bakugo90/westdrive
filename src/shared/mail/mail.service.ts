@@ -33,6 +33,15 @@ export class MailService {
     const port = Number(this.configService.get<string>('MAIL_PORT', '465'));
     const secure =
       this.configService.get<string>('MAIL_SECURE', 'true') === 'true';
+    const connectionTimeout = Number(
+      this.configService.get<string>('MAIL_CONNECTION_TIMEOUT_MS', '10000'),
+    );
+    const greetingTimeout = Number(
+      this.configService.get<string>('MAIL_GREETING_TIMEOUT_MS', '10000'),
+    );
+    const socketTimeout = Number(
+      this.configService.get<string>('MAIL_SOCKET_TIMEOUT_MS', '20000'),
+    );
 
     if (!host || !user || !pass) {
       throw new Error(
@@ -44,6 +53,9 @@ export class MailService {
       host,
       port,
       secure,
+      connectionTimeout,
+      greetingTimeout,
+      socketTimeout,
       auth: {
         user,
         pass,
@@ -92,13 +104,22 @@ export class MailService {
       `Validite: ${options.ttlMinutes} minutes`,
     ].join('\n');
 
-    const info: unknown = await this.transporter.sendMail({
-      from: `${this.fromName} <${this.fromEmail}>`,
-      to: options.to,
-      subject,
-      text,
-      html,
-    });
+    let info: unknown;
+
+    try {
+      info = await this.transporter.sendMail({
+        from: `${this.fromName} <${this.fromEmail}>`,
+        to: options.to,
+        subject,
+        text,
+        html,
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'Unknown SMTP error';
+      this.logger.error(`Failed to send OTP email to ${options.to}: ${reason}`);
+      throw new Error(`OTP email delivery failed: ${reason}`);
+    }
 
     const messageId = this.readMessageId(info);
 
