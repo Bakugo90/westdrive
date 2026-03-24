@@ -31,21 +31,9 @@ export class MailService {
     const host = this.configService.get<string>('MAIL_HOST');
     const user = this.configService.get<string>('MAIL_USER');
     const pass = this.configService.get<string>('MAIL_PASSWORD');
-    const port = Number(this.configService.get<string>('MAIL_PORT', '465'));
+    const port = Number(this.configService.get<string>('MAIL_PORT', '587'));
     const secure =
-      this.configService.get<string>('MAIL_SECURE', 'true') === 'true';
-    const connectionTimeout = Number(
-      this.configService.get<string>('MAIL_CONNECTION_TIMEOUT_MS', '10000'),
-    );
-    const greetingTimeout = Number(
-      this.configService.get<string>('MAIL_GREETING_TIMEOUT_MS', '10000'),
-    );
-    const socketTimeout = Number(
-      this.configService.get<string>('MAIL_SOCKET_TIMEOUT_MS', '20000'),
-    );
-    const dnsTimeout = Number(
-      this.configService.get<string>('MAIL_DNS_TIMEOUT_MS', '5000'),
-    );
+      this.configService.get<string>('MAIL_SECURE', 'false') === 'true';
 
     if (!host || !user || !pass) {
       throw new Error(
@@ -61,15 +49,16 @@ export class MailService {
       host,
       port,
       secure,
-      connectionTimeout,
-      greetingTimeout,
-      socketTimeout,
-      dnsTimeout,
+      requireTLS: !secure,
       auth: {
         user,
         pass,
       },
     });
+
+    this.logger.log(
+      `SMTP transport initialized (host=${host}, port=${port}, secure=${secure}, requireTLS=${!secure})`,
+    );
   }
 
   async sendOtpEmail(options: {
@@ -84,6 +73,10 @@ export class MailService {
       );
       return;
     }
+
+    this.logger.log(
+      `Sending OTP email (purpose=${options.purpose}) to ${options.to}`,
+    );
 
     const subject =
       options.purpose === 'register'

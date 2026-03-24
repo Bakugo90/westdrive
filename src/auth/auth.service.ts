@@ -48,8 +48,12 @@ export class AuthService {
 
   async requestRegisterOtp(dto: RegisterDto): Promise<{ message: string }> {
     const email = this.normalizeEmail(dto.email);
+    this.logger.log(`Register OTP requested for ${email}`);
     const existingUser = await this.usersService.findByEmail(email);
     if (existingUser) {
+      this.logger.warn(
+        `Register OTP rejected because email already exists: ${email}`,
+      );
       throw new BadRequestException('Email already in use');
     }
 
@@ -92,6 +96,8 @@ export class AuthService {
       },
       ttlMinutes,
     });
+
+    this.logger.log(`Register OTP created and email send attempted for ${email}`);
 
     return { message: 'OTP sent' };
   }
@@ -358,6 +364,9 @@ export class AuthService {
     userId?: string;
     suppressEmailErrors?: boolean;
   }): Promise<void> {
+    this.logger.log(
+      `Creating OTP for purpose=${options.purpose} email=${options.email}`,
+    );
     await this.authOtpRepository.delete({
       email: options.email,
       purpose: options.purpose,
@@ -380,6 +389,10 @@ export class AuthService {
       }),
     );
 
+    this.logger.log(
+      `OTP persisted for purpose=${options.purpose} email=${options.email}`,
+    );
+
     try {
       await this.mailService.sendOtpEmail({
         to: options.email,
@@ -392,6 +405,11 @@ export class AuthService {
       });
     } catch (error) {
       await this.authOtpRepository.delete({ id: otpRecord.id });
+
+      const reason = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `OTP email delivery failed for purpose=${options.purpose} email=${options.email}. reason=${reason}`,
+      );
 
       if (options.suppressEmailErrors) {
         this.logger.warn(
